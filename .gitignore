@@ -33,4 +33,4 @@ go.work.sum
 
 # Lambda build artifacts
 bootstrap
-main.zip
+go-gateway.zip
