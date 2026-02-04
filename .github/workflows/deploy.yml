@@ -1,0 +1,40 @@
+name: Deploy go-gateway to Lambda
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.23.2'
+      - name: Build and Package
+        run: |
+          make build
+          zip go-gateway.zip bootstrap 
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ap-northeast-1
+
+      - name: Upload to S3
+        run: |
+          aws s3 cp go-gateway.zip s3://${{ secrets.S3_BUCKET_NAME }}/go-gateway/${{ github.sha }}.zip
+
+      - name: Update Lambda Function
+        run: |
+          aws lambda update-function-code \
+            --function-name go-gateway \
+            --s3-bucket ${{ secrets.S3_BUCKET_NAME }} \
+            --s3-key go-gateway/${{ github.sha }}.zip
