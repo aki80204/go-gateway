@@ -10,5 +10,6 @@ require (
 
 require (
 	github.com/MicahParks/jwkset v0.5.18 // indirect
+	github.com/stretchr/testify v1.11.1 // indirect
 	golang.org/x/time v0.5.0 // indirect
 )
