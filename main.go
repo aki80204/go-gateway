@@ -2,14 +2,17 @@ package main
 
 import (
 	"context"
-	"encoding/json"
 	"log"
+	"os"
+	"strings"
 	"time"
 
 	"github.com/aws/aws-lambda-go/events"
 	"github.com/aws/aws-lambda-go/lambda"
 
 	"github.com/aki80204/go-gateway/auth"
+	"github.com/aki80204/go-gateway/proxy"
+	"github.com/aki80204/go-gateway/utils"
 )
 
 var validator *auth.Validator
@@ -28,64 +31,30 @@ func init() {
 }
 
 // APIGatewayから呼び出されるLambda関数
-func Handler(ctx context.Context, request events.APIGatewayProxyRequest) (events.APIGatewayProxyResponse, error) {
+func Handler(ctx context.Context, request events.APIGatewayV2HTTPRequest) (events.APIGatewayProxyResponse, error) {
 	// validatorが初期化されていない場合はエラーを返す
 	if validator == nil {
 		log.Printf("auth validator が初期化されていません。環境変数 AUTH0_DOMAIN/AUTH0_AUDIENCE を確認してください。")
-		return events.APIGatewayProxyResponse{
-			StatusCode: 500,
-			Body:       "Internal Server Error",
-		}, nil
+		return utils.ErrorResponse(500, "Internal Server Error"), nil
 	}
 
-	// Authorizationヘッダーの抽出
-	authHeader := request.Headers["Authorization"]
-	if authHeader == "" {
-		authHeader = request.Headers["authorization"]
-	}
-
-	tokenString, err := auth.ExtractBearerToken(authHeader)
+	sub, err := auth.CheckAuth(*validator, request)
 	if err != nil {
-		log.Printf("Authorizationヘッダーが不正です: %v", err)
-		return events.APIGatewayProxyResponse{
-			StatusCode: 401,
-			Body:       "Unauthorized",
-		}, nil
+		return utils.ErrorResponse(401, "Unauthorized"), nil
 	}
 
-	claims, err := validator.ValidateToken(tokenString)
-	if err != nil {
-		log.Printf("JWTの検証に失敗しました: %v", err)
-		return events.APIGatewayProxyResponse{
-			StatusCode: 401,
-			Body:       "Unauthorized",
-		}, nil
+	switch {
+	case strings.HasPrefix(request.RawPath, "/api/customers"):
+		// 顧客管理サービスへプロキシ
+		return proxy.ProxyRequest(request, os.Getenv("CUSTOMER_SERVICE_URL"), sub)
+
+	case strings.HasPrefix(request.RawPath, "/api/trades"):
+		// 取引サービスへプロキシ(未実装)
+		return utils.SuccessResponse(200, `{"message":"Trade service coming soon"}`), nil
+
+	default:
+		return utils.ErrorResponse(404, "Not Found"), nil
 	}
-
-	sub, _ := claims["sub"].(string)
-
-	resp := map[string]interface{}{
-		"message": "Auth0 validation successful.",
-		"sub":     sub,
-	}
-
-	body, err := json.Marshal(resp)
-	if err != nil {
-		log.Printf("レスポンスJSONの生成に失敗しました: %v", err)
-		return events.APIGatewayProxyResponse{
-			StatusCode: 500,
-			Body:       "Internal Server Error",
-		}, nil
-	}
-
-	return events.APIGatewayProxyResponse{
-		StatusCode: 200,
-		Headers: map[string]string{
-			"Content-Type": "application/json",
-		},
-		Body:            string(body),
-		IsBase64Encoded: false,
-	}, nil
 }
 
 func main() {
