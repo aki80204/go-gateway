@@ -30,11 +30,11 @@ jobs:
 
       - name: Upload to S3
         run: |
-          aws s3 cp go-gateway.zip s3://${{ secrets.S3_BUCKET_NAME }}/go-gateway/${{ github.sha }}.zip
+          aws s3 cp go-gateway.zip s3://${{ secrets.S3_BUCKET_NAME }}/go-gateway/go-gateway.zip
 
       - name: Update Lambda Function
         run: |
           aws lambda update-function-code \
             --function-name go-gateway \
             --s3-bucket ${{ secrets.S3_BUCKET_NAME }} \
-            --s3-key go-gateway/${{ github.sha }}.zip
+            --s3-key go-gateway/go-gateway.zip
