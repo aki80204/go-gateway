@@ -2,7 +2,6 @@ package proxy
 
 import (
 	"io"
-	"log"
 	"net/http"
 	"strings"
 	"time"
@@ -32,23 +31,13 @@ func ProxyRequest(request events.APIGatewayV2HTTPRequest, targetBaseURL string, 
 	client := &http.Client{Timeout: 30 * time.Second}
 	resp, err := client.Do(req)
 	if err != nil {
-		log.Printf("❌ Lambda Call Error: %v", err)
 		return utils.ErrorResponse(502, "Bad Gateway"), nil
 	}
-	defer resp.Body.Close()
+	defer func() {
+		_ = resp.Body.Close()
+	}()
 
-	log.Printf("✅ Received Status: %d", resp.StatusCode) // ここがログに出るか確認！
-
-	// io.ReadAll の前に「最大読み込みサイズ」を制限する（保険）
-	// また、読み込みに時間がかかりすぎるのを防ぐ
-	body, err := io.ReadAll(io.LimitReader(resp.Body, 1024*1024)) // 最大1MB
-	if err != nil {
-		log.Printf("❌ Body Read Error: %v", err)
-		// ここでエラーが出るなら、Java側のレスポンス形式が壊れています
-	}
-
-	log.Printf("✅ Body Read Success. Size: %d", len(body))
-
+	body, _ := io.ReadAll(resp.Body)
 	return events.APIGatewayProxyResponse{
 		StatusCode: resp.StatusCode,
 		Headers:    map[string]string{"Content-Type": "application/json"},
