@@ -28,7 +28,7 @@ func ProxyRequest(request events.APIGatewayV2HTTPRequest, targetBaseURL string, 
 	}
 	req.Header.Set("X-Auth-User-ID", sub)
 
-	client := &http.Client{Timeout: 30 * time.Second}
+	client := &http.Client{Timeout: 60 * time.Second}
 	resp, err := client.Do(req)
 	if err != nil {
 		return utils.ErrorResponse(502, "Bad Gateway"), nil
