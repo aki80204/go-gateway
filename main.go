@@ -3,8 +3,6 @@ package main
 import (
 	"context"
 	"log"
-	"os"
-	"strings"
 	"time"
 
 	"github.com/aws/aws-lambda-go/events"
@@ -12,12 +10,14 @@ import (
 
 	"github.com/aki80204/go-gateway/auth"
 	"github.com/aki80204/go-gateway/proxy"
+	"github.com/aki80204/go-gateway/router"
 	"github.com/aki80204/go-gateway/utils"
 )
 
 var validator *auth.Validator
+var gatewayRouter *router.Router
 
-// 起動時にAuth0のvalidatorを初期化する
+// 起動時にAuth0のvalidatorとRouterを初期化する
 func init() {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
@@ -28,6 +28,7 @@ func init() {
 		return
 	}
 	validator = v
+	gatewayRouter = router.NewRouter(proxy.ProxyRequest)
 }
 
 // APIGatewayから呼び出されるLambda関数
@@ -43,18 +44,7 @@ func Handler(ctx context.Context, request events.APIGatewayV2HTTPRequest) (event
 		return utils.ErrorResponse(401, "Unauthorized"), nil
 	}
 
-	switch {
-	case strings.HasPrefix(request.RawPath, "/api/customers"):
-		// 顧客管理サービスへプロキシ
-		return proxy.ProxyRequest(request, os.Getenv("CUSTOMER_SERVICE_URL"), sub)
-
-	case strings.HasPrefix(request.RawPath, "/api/trades"):
-		// 取引サービスへプロキシ(未実装)
-		return utils.SuccessResponse(200, `{"message":"Trade service coming soon"}`), nil
-
-	default:
-		return utils.ErrorResponse(404, "Not Found"), nil
-	}
+	return gatewayRouter.Route(request, sub)
 }
 
 func main() {
