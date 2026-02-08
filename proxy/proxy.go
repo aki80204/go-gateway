@@ -17,6 +17,9 @@ func ProxyRequest(request events.APIGatewayV2HTTPRequest, targetBaseURL string, 
 
 	// リクエストの組み立て
 	targetURL := targetBaseURL + request.RawPath
+	if request.RawQueryString != "" {
+		targetURL += "?" + request.RawQueryString
+	}
 	req, err := http.NewRequest(request.RequestContext.HTTP.Method, targetURL, strings.NewReader(request.Body))
 	if err != nil {
 		return utils.ErrorResponse(500, "Internal Proxy Error"), nil
